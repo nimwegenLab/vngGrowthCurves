@@ -1,0 +1,14 @@
+Package: vngGrowthCurves
+Title: vngGrowthCurves
+Version: 0.1.0
+Authors@R: person("Thomas", "Julou", email = "thomas.julou@normalesup.org",
+                  role = c("aut", "cre"))
+Description: Analyse of spectrophotometry time series (for bacterial growth).
+Depends: R (>= 3.1.0)
+Imports:
+    magrittr,
+    stringr,
+    tidyr,
+    dplyr
+License: file LICENSE
+LazyData: true
