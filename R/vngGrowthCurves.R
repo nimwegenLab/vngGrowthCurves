@@ -7,6 +7,17 @@
 globalVariables(c(".", "time", "hours", "sec", "channel", "value", "last_col",
                   "i", "sd"))
 
+read_Biotek_Synergy2_matrix <- function(.path) {
+  .lines <- readLines(.path)
+  # extract the channel name
+  paste(.lines[3:length(.lines)], collapse='\n') %>% 
+    utils::read.table(text=., sep="\t", header=FALSE, stringsAsFactors=FALSE) %>% 
+    stats::setNames(c("row", 1:12, 'last_col')) %>% 
+    dplyr::select(-last_col) %>% 
+    # reshape wide to long
+    tidyr::gather(col, value, dplyr::matches("\\d+")) %>% 
+    dplyr::mutate(well=paste0(row, col), col=as.numeric(col), channel=.lines[1])
+}
 
 read_Biotek_Synergy2_kinetic <- function(.path) {
 #  read_spec_kinetic() is written such as to call read.table only once 
@@ -31,9 +42,10 @@ read_Biotek_Synergy2_kinetic <- function(.path) {
     stats::setNames(c("channel", "time", "step", "row", 1:12, 'last_col')) %>% 
     dplyr::select(-last_col) %>% 
     # convert time to float
+    # dplyr::mutate(time=lubridate::hms(time)) %>%
     tidyr::extract(time, c('hours', 'min', 'sec'), '(\\d+):(\\d+):(\\d+)') %>%
     dplyr::mutate(time=as.numeric(hours)*3600 + as.numeric(min)*60 + as.numeric(sec)) %>%
-    dplyr::select(-hours, -min, -sec) %>% 
+    dplyr::select(-hours, -min, -sec) %>%
     # reshape wide to long
     tidyr::gather(col, value, dplyr::matches("\\d+")) %>% 
     dplyr::mutate(well=paste0(row, col), col=as.numeric(col), channel=as.character(channel))
@@ -54,7 +66,7 @@ find_blank_od <- function(.t, .od, .tmin=0, .tmax=Inf, .npoints=10, .nstep=5, .n
       data.frame(mean=mean(.tmp), sd=stats::sd(.tmp))
       })(.))
   
-  .out <- .stats %>% dplyr::ungroup %>%
+  .out <- .stats %>% dplyr::ungroup() %>%
     dplyr::filter(sd/mean < .cv_thresh) %>% 
     dplyr::filter(mean==min(mean)) %>% 
     dplyr::slice(1) %>% # if several are found use the first one
