@@ -49,6 +49,10 @@ read_Biotek_Synergy2_kinetic <- function(.path) {
     # reshape wide to long
     tidyr::gather(col, value, dplyr::matches("\\d+")) %>% 
     dplyr::mutate(well=paste0(row, col), col=as.numeric(col), channel=as.character(channel))
+  
+ if(nrow(filter(.data, step>1, time==0))) 
+   warning('CRITICAL: You should check that your data file doesnt contain empty measurements at its end (this happens when the acquisition is stopped manually...). It is strongly advised to delete those manually an import again.')
+ 
   return(.data)
 }
 
