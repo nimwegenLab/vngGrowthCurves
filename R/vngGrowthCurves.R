@@ -4,7 +4,7 @@
   invisible()
 }
 
-globalVariables(c(".", "time", "hours", "sec", "channel", "value", "last_col",
+globalVariables(c(".", "time", "hours", "sec", "channel", "value", "last_col", "step",
                   "i", "sd"))
 
 read_Biotek_Synergy2_matrix <- function(.path) {
@@ -24,7 +24,7 @@ read_Biotek_Synergy2_kinetic <- function(.path) {
 # (much faster than calling it for each timepoint and channel)
   .lines <- readLines(.path)
   .l_idx <- stringr::str_detect(.lines, "(?:Kinetic read)|(?:Time) (\\d+) (.*)") %>% which %>% (function(.x) .x-1)
-  
+
   .data <- lapply(.l_idx, function(.i) {
     # extract the channel name
     .m <- stringr::str_match(.lines[.i], "(?:Read \\d+:)*(.+)")
@@ -50,7 +50,7 @@ read_Biotek_Synergy2_kinetic <- function(.path) {
     tidyr::gather(col, value, dplyr::matches("\\d+")) %>% 
     dplyr::mutate(well=paste0(row, col), col=as.numeric(col), channel=as.character(channel))
   
- if(nrow(filter(.data, step>1, time==0))) 
+ if(nrow(dplyr::filter(.data, step>1, time==0))) 
    warning('CRITICAL: You should check that your data file doesnt contain empty measurements at its end (this happens when the acquisition is stopped manually...). It is strongly advised to delete those manually an import again.')
  
   return(.data)
