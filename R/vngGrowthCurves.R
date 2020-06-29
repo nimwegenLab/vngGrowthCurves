@@ -23,7 +23,7 @@ read_Biotek_Synergy2_kinetic <- function(.path) {
 #  read_spec_kinetic() is written such as to call read.table only once 
 # (much faster than calling it for each timepoint and channel)
   .lines <- readLines(.path)
-  .l_idx <- stringr::str_detect(.lines, "(?:Kinetic read|Time) (\\d+) (.*)") %>% which %>% (function(.x) .x-1)
+  .l_idx <- stringr::str_detect(.lines, "(?:Kinetic read|Time) (\\d+) (.*)") %>% which %>% (function(.x) .x-1) 
 
   .data <- lapply(.l_idx, function(.i) {
     # extract the channel name
