@@ -1,13 +1,6 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
+# This is a Shiny web application. You can run the application by executing `vngGrowthCurves:::Momentum_GC_run()`
 
 globalVariables(c("data", "datetime", "filedate", "filename", "filetime", "is_txt", "path", "series", "time_sec"))
-
 
 range_to_wells <- function(c_lim) {
   # NB: excel cells use letters for columns while microplate wells use them for rows... 
@@ -65,7 +58,8 @@ Momentum_GC_ui <- shiny::fluidPage(
   )
   )
 
-# Define server logic required to draw a histogram
+
+# Define server logic required to parse files and plot the growth curves
 Momentum_GC_server <- function(input, output) {
 
   # enable directory selection in UI
@@ -174,7 +168,6 @@ Momentum_GC_server <- function(input, output) {
         plotly::ggplotly(create_plot()) %>%
           plotly::layout(legend = list(orientation = "h", x=0, y=-0.07, itemsizing="constant"))
   })      
-  
 }
 
 # Run the application 
