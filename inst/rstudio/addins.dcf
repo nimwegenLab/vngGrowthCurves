@@ -1,0 +1,4 @@
+Name: Momentum Growth Curves
+Description: Opens an app to plot Growth Curves recorded by Momentum.
+Binding: Momentum_GC_run
+Interactive: true
