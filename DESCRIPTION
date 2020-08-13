@@ -9,6 +9,15 @@ Imports:
     magrittr,
     stringr,
     tidyr,
-    dplyr
+    dplyr,
+    shiny (>= 0.13),
+    shinyFiles,
+    rstudioapi (>= 0.5),
+    fs,
+    lubridate,
+    cellranger,
+    knitr,
+    ggplot2,
+    plotly
 License: file LICENSE
 LazyData: true
