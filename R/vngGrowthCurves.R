@@ -82,3 +82,7 @@ find_blank_od <- function(.t, .od, .tmin=0, .tmax=Inf, .npoints=10, .nstep=5, .n
   # todo: check that od is stable for a certain time after time_blank
   .out
 }
+
+
+MomentumGC_run <- function(dir=NULL, ...)
+  shiny::runApp(system.file("MomentumGC", package="vngGrowthCurves"), ...)
