@@ -28,8 +28,8 @@ shinyUI(
              verbatimTextOutput("path")
            ),
            fluidRow(
-             column(9, textInput("glob", "Pattern", 
-                                 placeholder = "Path pattern (globbing accepted)")),
+             column(9, textInput("re", "Filter", 
+                                 placeholder = "Path pattern (regexp)")),
              column(2, actionButton("refreshPlot","Plot ", icon=icon("chart-line"), class = "btn-primary"),
                     # style="float:right;"),
                     # class="pull-sm-right"), # will work the day shiny uses BS4

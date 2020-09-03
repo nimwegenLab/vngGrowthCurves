@@ -47,10 +47,10 @@ shinyServer(
     if (is.integer(input$path)) {
       NULL
     } else {
-      glob <- if (input$glob=="") NULL else input$glob
+      re <- if (input$re=="") NULL else input$re
       # browser()
       shinyFiles::parseDirPath(volumes, input$path) %>% 
-        fs::dir_ls(type="file", glob=glob) %>%
+        fs::dir_ls(type="file", regexp=re) %>%
         tibble(path=.) %>%
         mutate(filename = fs::path_file(path),
                is_txt=stringr::str_detect(filename, "\\.txt$"),
