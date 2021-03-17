@@ -10,7 +10,8 @@ globalVariables(c(".", "time", "hours", "sec", "channel", "value", "last_col", "
 read_Biotek_Synergy2_matrix <- function(.path) {
   .lines <- readLines(.path)
   # extract the channel name
-  paste(.lines[3:length(.lines)], collapse='\n') %>% 
+  # paste(.lines[3:length(.lines)], collapse='\n') %>% 
+  paste(.lines[3:10], collapse='\n') %>%  # ugly patch for Dany
     utils::read.table(text=., sep="\t", header=FALSE, stringsAsFactors=FALSE) %>% 
     stats::setNames(c("row", 1:12, 'last_col')) %>% 
     dplyr::select(-last_col) %>% 
