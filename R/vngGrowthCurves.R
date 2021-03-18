@@ -8,11 +8,16 @@ globalVariables(c(".", "time", "hours", "sec", "channel", "value", "last_col", "
                   "i", "sd"))
 
 read_Biotek_Synergy2_matrix <- function(.path) {
+  # browser()
   .lines <- readLines(.path)
-  # extract the channel name
+  .delim <- ""
+  if (stringr::str_count(.lines[3], "\\t") == 13) { .delim <- "\t" }
+  if (stringr::str_count(.lines[3], ",") == 13) { .delim <- "," }
+  if (.delim == "") stop("text delimiter not recognized")
+    # extract the channel name
   # paste(.lines[3:length(.lines)], collapse='\n') %>% 
   paste(.lines[3:10], collapse='\n') %>%  # ugly patch for Dany
-    utils::read.table(text=., sep="\t", header=FALSE, stringsAsFactors=FALSE) %>% 
+    utils::read.table(text=., sep=.delim, header=FALSE, stringsAsFactors=FALSE) %>% 
     stats::setNames(c("row", 1:12, 'last_col')) %>% 
     dplyr::select(-last_col) %>% 
     # reshape wide to long

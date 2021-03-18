@@ -92,7 +92,7 @@ shinyServer(
       if (myseries() %>% filter(!is.na(series)) %>% nrow()) {
         mydata <- myseries() %>% filter(!is.na(series)) %>% 
           unnest(data) %>% filter(is_txt) %>% 
-          extract(filename, c('filedate', 'filetime'), "_pl1_(\\d{8})_(\\d{6})(?:_FE_)?.txt$", remove=FALSE) %>% 
+          extract(filename, c('filedate', 'filetime'), "_pl\\d+_(\\d{8})_(\\d{6})(?:_FE_)?.txt$", remove=FALSE) %>% 
           rowwise() %>% 
           mutate(
             datetime=lubridate::ymd_hms(paste0(filedate, filetime)), filedate=NULL, filetime=NULL,
