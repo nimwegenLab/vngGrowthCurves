@@ -2,8 +2,9 @@
 
 library(shiny)
 # library(shinyFiles)
-library(dplyr)
 library(tidyr)
+library(dplyr)
+library(purrr)
 library(ggplot2)
 library(vngGrowthCurves)
 
@@ -44,20 +45,24 @@ shinyServer(
   })
   
   myseries <- reactive({
+  # myseries is NULL when no file can be parsed
     if (is.integer(input$path)) {
       NULL
     } else {
       re <- if (input$re=="") NULL else input$re
       # browser()
-      shinyFiles::parseDirPath(volumes, input$path) %>% 
-        fs::dir_ls(type="file", regexp=re) %>%
-        tibble(path=.) %>%
+      .paths <- shinyFiles::parseDirPath(volumes, input$path) %>% 
+        { try(fs::dir_ls(., type="file", regexp=re)) } #dir_ls() crashes when regex is not correct
+      
+      if (class(.paths) == "try-error") NULL else
+        tibble(path=.paths) %>%
         mutate(filename = fs::path_file(path),
                is_txt=stringr::str_detect(filename, "\\.txt$"),
                series = stringr::str_extract(filename, "^.*_pl\\d+")
         ) %>%
         group_by(series) %>%
-        nest() %>%
+        nest() %>% 
+        mutate(channels=map(data, ~try( read_Biotek_Synergy2_matrices(.$path[1], .ch_only=T) ))) %>%
         identity()
     }
   })
@@ -65,14 +70,18 @@ shinyServer(
   output$series <- renderPrint({
     if (is.null(myseries())) {
       invisible() # return nothing (as per the doc)
+    } else if (myseries() %>% pull(channels) %>% unique() %>% length() > 1) {
+      # case of channels mismatch
+      print("Error: found files with different measurement channels, please adjust your selection criteria.")
     } else {
+      # case of parsable data
       if (any(is.na(myseries()$series)))
         print("Message: found files not matching the pattern...")
       
       if (myseries() %>% filter(is.na(series)) %>% nrow())
-        if (myseries() %>% filter(is.na(series)) %>% unnest(data) %>% filter(!is_txt) %>% nrow())
+        if (myseries() %>% filter(is.na(series)) %>% unnest(data) %>% filter(!is_txt) %>% nrow()) 
           print("Warning: ignoring files with extension different from `.txt`...")
-      
+
       cat("Found ", myseries() %>% filter(!is.na(series)) %>% nrow(), " files series:")
       if (myseries() %>% filter(!is.na(series)) %>% nrow())
         myseries() %>% filter(!is.na(series)) %>% 
@@ -88,26 +97,43 @@ shinyServer(
   }
   
   parse_data <- reactive({
-    if (!is.null(myseries()))
-      if (myseries() %>% filter(!is.na(series)) %>% nrow()) {
-        mydata <- myseries() %>% filter(!is.na(series)) %>% 
-          unnest(data) %>% filter(is_txt) %>% 
-          extract(filename, c('filedate', 'filetime'), "_pl\\d+_(\\d{8})_(\\d{6})(?:_FE_)?.txt$", remove=FALSE) %>% 
-          rowwise() %>% 
-          mutate(
-            datetime=lubridate::ymd_hms(paste0(filedate, filetime)), filedate=NULL, filetime=NULL,
-            data=list(vngGrowthCurves::read_Biotek_Synergy2_matrix(path)),
-            # data=purrr::map(path, ~vngGrowthCurves::read_Biotek_Synergy2_matrix(.))
-          ) %>%
-          unnest(data) %>% 
-          mutate(value=as.numeric(value))
-      }
+    if (!is.null(myseries())) # redundant with is_empty()
+      if (!is_empty(myseries()))
+        if (myseries() %>% filter(!is.na(series)) %>% nrow()) {
+          myseries() %>% filter(!is.na(series)) %>% select(-channels) %>% 
+            unnest(data) %>% filter(is_txt) %>% 
+            extract(filename, c('filedate', 'filetime'), "_pl\\d+_(\\d{8})_(\\d{6})(?:_FE_)?.txt$", remove=FALSE) %>% 
+            rowwise() %>% 
+            mutate(
+              datetime=lubridate::ymd_hms(paste0(filedate, filetime)), filedate=NULL, filetime=NULL,
+              data=list(vngGrowthCurves::read_Biotek_Synergy2_matrices(path)),
+              # data=purrr::map(path, ~vngGrowthCurves::read_Biotek_Synergy2_matrix(.))
+            ) %>%
+            unnest(data) %>%
+            unnest(data) %>%
+            mutate(value=as.numeric(value)) %>% 
+            identity()
+        }
+  })
+  
+  observe({
+    if (!is.null(myseries())) {
+      .ch <- myseries() %>% pull(channels) %>% unique()
+      
+      if (length(.ch) == 1 && typeof(.ch[[1]])=="character")
+        updateSelectInput(session, "channel",
+                          label = "Channel",
+                          choices = .ch[[1]],
+                          selected = .ch[[1]][1]
+        )
+    }
   })
         
   create_plot <- eventReactive(c(input$refreshPlot, input$log), {
     if (!is.null(myseries()))
       if (myseries() %>% filter(!is.na(series)) %>% nrow()) {
-        mydata <- parse_data()
+        mydata <- parse_data() %>% 
+          filter(channel == input$channel)
         
         c_lim <- try(cellranger::as.cell_limits(input$range), silent = TRUE)
         if (class(c_lim)[1] != 'try-error')

@@ -38,6 +38,7 @@ shinyUI(
     ),
     
     column(4, offset = 1, # options
+                  selectInput("channel", "Channel", 'No choices here yet'),
                   textInput("range", "Wells range", 
                      placeholder = "e.g. A1:D8 (empty for all wells)"),
            
