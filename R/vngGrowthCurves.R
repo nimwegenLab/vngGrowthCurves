@@ -7,22 +7,50 @@
 globalVariables(c(".", "time", "hours", "sec", "channel", "value", "last_col", "step",
                   "i", "sd"))
 
-read_Biotek_Synergy2_matrix <- function(.path) {
-  # browser()
+
+read_Biotek_Synergy2_matrices <- function(.path, .channels = "all", .ch_only=FALSE) {
+  # .channels is either a vector of channels to be kept (one-based indices, or names), or "all"
   .lines <- readLines(.path)
+
+  # identify delimiter (tab and comma supported)
   .delim <- ""
   if (stringr::str_count(.lines[3], "\\t") == 13) { .delim <- "\t" }
   if (stringr::str_count(.lines[3], ",") == 13) { .delim <- "," }
   if (.delim == "") stop("text delimiter not recognized")
-    # extract the channel name
-  # paste(.lines[3:length(.lines)], collapse='\n') %>% 
-  paste(.lines[3:10], collapse='\n') %>%  # ugly patch for Dany
-    utils::read.table(text=., sep=.delim, header=FALSE, stringsAsFactors=FALSE) %>% 
-    stats::setNames(c("row", 1:12, 'last_col')) %>% 
-    dplyr::select(-last_col) %>% 
+  
+  .ids <- stringr::str_which(.lines, "^$") # find empty lines
+
+  if (.ch_only) 
+    return(.lines[.ids - 10])
+  
+  if (.channels != "all") .ids <- .ids[.channels]
+  
+  parse_table_text <- function(text, delim)
+    utils::read.table(text=text, sep=delim, header=FALSE, stringsAsFactors=FALSE) %>% 
+    # stats::setNames(c("row", 1:12, 'last_col')) %>% 
+    # dplyr::select(-last_col) %>% 
+    # handle cases where the last column might have separator chars
+    dplyr::select(1:13) %>%
+    stats::setNames(c("row", 1:12)) %>%
     # reshape wide to long
     tidyr::gather(col, value, dplyr::matches("\\d+")) %>% 
-    dplyr::mutate(well=paste0(row, col), col=as.numeric(col), channel=.lines[1])
+    dplyr::mutate(well=paste0(row, col), col=as.numeric(col))
+  
+  dplyr::tibble(id_line = .ids - 8) %>% 
+    dplyr::rowwise() %>% 
+    dplyr::mutate(channel = purrr::map_chr(id_line, ~.lines[.-2])) %>% 
+    dplyr::mutate(data = purrr::map(id_line, ~ {
+      paste(.lines[seq(.x, .x+7)], collapse='\n') %>%
+        parse_table_text(delim=.delim)
+    }),
+    id_line = NULL,
+    )
+}
+
+read_Biotek_Synergy2_matrix <- function(.path) {
+  # read only the first channel, ignore silently following ones
+  read_Biotek_Synergy2_matrices(.path, .channels=1) %>% 
+    tidyr::unnest(data)
 }
 
 read_Biotek_Synergy2_kinetic <- function(.path) {
