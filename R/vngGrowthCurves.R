@@ -12,18 +12,17 @@ read_Biotek_Synergy2_matrices <- function(.path, .channels = "all", .ch_only=FAL
   # .channels is either a vector of channels to be kept (one-based indices, or names), or "all"
   .lines <- readLines(.path)
 
-  # identify delimiter (tab and comma supported)
-  .delim <- ""
-  if (stringr::str_count(.lines[3], "\\t") == 13) { .delim <- "\t" }
-  if (stringr::str_count(.lines[3], ",") == 13) { .delim <- "," }
-  if (.delim == "") stop("text delimiter not recognized")
-  
   .ids <- stringr::str_which(.lines, "^$") # find empty lines
-
   if (.ch_only) 
     return(.lines[.ids - 10])
-  
   if (.channels != "all") .ids <- .ids[.channels]
+  
+  # identify delimiter (tab and comma supported)
+  .delim <- ""
+  if (stringr::str_count(.lines[3], "\\t") == 13) { 
+    .delim <- "\t" 
+    } else if (stringr::str_count(.lines[3], ",") == 13) { .delim <- "," }
+  if (.delim == "") stop("text delimiter not recognized")
   
   parse_table_text <- function(text, delim)
     utils::read.table(text=text, sep=delim, header=FALSE, stringsAsFactors=FALSE) %>% 

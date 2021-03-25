@@ -62,7 +62,7 @@ shinyServer(
         ) %>%
         group_by(series) %>%
         nest() %>% 
-        mutate(channels=map(data, ~try( read_Biotek_Synergy2_matrices(.$path[1], .ch_only=T) ))) %>%
+        mutate(channels=map(data, ~try( read_Biotek_Synergy2_matrices(.$path[.$is_txt][1], .ch_only=T) ))) %>%
         identity()
     }
   })
