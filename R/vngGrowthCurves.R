@@ -4,9 +4,37 @@
   invisible()
 }
 
-globalVariables(c(".", "time", "hours", "sec", "channel", "value", "last_col", "step",
-                  "i", "sd"))
+globalVariables(c(".", ":=", "time", "hours", "sec", "channel", "value", "last_col", "step",
+                  "a", "i", "sd", "id_line", "Time"))
 
+create_empty_plate <- function(...) {
+  dplyr::left_join(
+    dplyr::tibble(a=1, ..., row=LETTERS[1:8]), 
+    dplyr::tibble(a=1, col=1:12), 
+    by="a") %>%
+    dplyr::select(-a) %>% 
+    dplyr::mutate(well=paste0(row, col))
+}
+
+add_col_var <- function(.df, .name, .values) {
+  if (length(.values) < 12) warning("`.values` has less than 12 values (values aren't recycled).")
+  if (length(.values) > 12) warning("`.values` has more than 12 values (values beyond the first twelve are discarded).")
+  dplyr::left_join(
+    .df,
+    dplyr::tibble(col=1:length(.values)) %>% dplyr::mutate({{.name}} := .values),
+    by = "col",
+  )
+}
+
+add_row_var <- function(.df, .name, .values) {
+  if (length(.values) < 8) warning("`.values` has less than 8 values (values aren't recycled).")
+  if (length(.values) > 8) warning("`.values` has more than 8 values (values beyond the first eight are discarded).")
+  dplyr::left_join(
+    .df,
+    dplyr::tibble(row=LETTERS[1:length(.values)]) %>% dplyr::mutate({{.name}} := .values),
+    by = "row",
+  )
+}
 
 read_Biotek_Synergy2_matrices <- function(.path, .channels = "all", .ch_only=FALSE) {
   # .channels is either a vector of channels to be kept (one-based indices, or names), or "all"
@@ -87,6 +115,14 @@ read_Biotek_Synergy2_kinetic <- function(.path) {
    warning('CRITICAL: You should check that your data file doesnt contain empty measurements at its end (this happens when the acquisition is stopped manually...). It is strongly advised to delete those manually an import again.')
  
   return(.data)
+}
+
+read_Biotek_Synergy2_columns <- function(.path, ...) {
+  readr::read_delim(.path, delim='\t', skip=2, 
+                    col_types=readr::cols(readr::col_time("%h:%M:%S"), .default=readr::col_double()) ) %>% 
+    dplyr::mutate(time=as.numeric(Time), Time=NULL, Temp=NULL) %>%
+    tidyr::pivot_longer(cols=-time, names_to="well", values_to = "value") %>% 
+    dplyr::full_join(dplyr::tibble(...), by=character())
 }
 
 
