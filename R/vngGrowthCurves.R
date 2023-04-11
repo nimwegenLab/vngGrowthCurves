@@ -4,7 +4,7 @@
   invisible()
 }
 
-globalVariables(c(".", ":=", "time", "hours", "sec", "channel", "value", "last_col", "step",
+globalVariables(c(".", ":=", "time", "hours", "sec", "channel", "value", "last_col", "step", "id_first", "id_last",
                   "a", "i", "sd", "id_line", "Time"))
 
 create_empty_plate <- function(...) {
@@ -16,28 +16,69 @@ create_empty_plate <- function(...) {
     dplyr::mutate(well=paste0(row, col))
 }
 
-add_col_var <- function(.df, .name, .values) {
+add_col_var <- function(.df, .name, .values, .row_subset=NULL) {
+# .row_subset is a vector of row indices, e.g. `LETTERS[1:4]`
   if (length(.values) < 12) warning("`.values` has less than 12 values (values aren't recycled).")
   if (length(.values) > 12) warning("`.values` has more than 12 values (values beyond the first twelve are discarded).")
-  dplyr::left_join(
-    .df,
-    dplyr::tibble(col=1:length(.values)) %>% dplyr::mutate({{.name}} := .values),
-    by = "col",
-  )
+  
+  if (!is.null(.row_subset)) {
+    if (length(setdiff(.row_subset, LETTERS[1:8])) > 0) warning("`.row_subset` has values not matching row indices (they will be ignored).")
+    .row_subset <- intersect(.row_subset, LETTERS[1:8])
+  } else {
+    # better surcharge the cross_join table otherwise the columns by whihc to left_join are not always the same
+    .row_subset <- LETTERS[1:8]
+  }
+  
+  dplyr::bind_rows(
+    dplyr::filter(.df, ! row %in% .row_subset),
+    dplyr::left_join(
+      dplyr::filter(.df, row %in% .row_subset) %>% 
+        dplyr::mutate({{.name}} := NULL), # override existing values
+      dplyr::tibble(col=1:length(.values)) %>% 
+        dplyr::mutate({{.name}} := .values) %>% 
+        dplyr::cross_join(dplyr::tibble(row=.row_subset)),
+      by = c("row", "col"),
+    )
+  ) 
+  # TODO: sort by id (e.g. date), row, col (figure out how to identify which column was used as id)
 }
 
-add_row_var <- function(.df, .name, .values) {
+add_row_var <- function(.df, .name, .values, .col_subset=NULL) {
+# .col_subset is a vector of column indices, e.g. `1:4`
   if (length(.values) < 8) warning("`.values` has less than 8 values (values aren't recycled).")
   if (length(.values) > 8) warning("`.values` has more than 8 values (values beyond the first eight are discarded).")
-  dplyr::left_join(
-    .df,
-    dplyr::tibble(row=LETTERS[1:length(.values)]) %>% dplyr::mutate({{.name}} := .values),
-    by = "row",
-  )
+  
+  if (!is.null(.col_subset)) {
+    if (length(setdiff(.col_subset, 1:12)) > 0) warning("`.col_subset` has values not matching column indices (they will be ignored).")
+    .col_subset <- intersect(.col_subset, 1:12)
+  } else {
+    # better surcharge the cross_join table otherwise the columns by whihc to left_join are not always the same
+    .col_subset <- 1:12
+  }
+
+  # browser()
+  # if (tibble::has_name(.df, {{.name}}) ) # did not find the right way to handle `.name` for this
+  #   if (dplyr::filter(.df, col %in% .col_subset) %>% dplyr::filter(!is.na({{.name}})) %>% nrow() > 0)
+  #     warning("Values are overriden by add_row_var()." )
+  
+  dplyr::bind_rows(
+    dplyr::filter(.df, ! col %in% .col_subset),
+    dplyr::left_join(
+      dplyr::filter(.df, col %in% .col_subset) %>% 
+        dplyr::mutate({{.name}} := NULL), # override existing values
+      dplyr::tibble(row=LETTERS[1:length(.values)]) %>% 
+        dplyr::mutate({{.name}} := .values) %>% 
+        dplyr::cross_join(dplyr::tibble(col=.col_subset)),
+      by = c("row", "col"),
+    )
+  ) 
+  # TODO: sort by id (e.g. date), row, col (figure out how to identify which column was used as id)
 }
 
 read_Biotek_Synergy2_matrices <- function(.path, .channels = "all", .ch_only=FALSE) {
   # .channels is either a vector of channels to be kept (one-based indices, or names), or "all"
+  
+  warning("read_Biotek_Synergy2_matrices() is deprecated; use read_Biotek_Synergy2_kinetic() instead.")
   .lines <- readLines(.path)
 
   .ids <- stringr::str_which(.lines, "^$") # find empty lines
@@ -47,9 +88,9 @@ read_Biotek_Synergy2_matrices <- function(.path, .channels = "all", .ch_only=FAL
   
   # identify delimiter (tab and comma supported)
   .delim <- ""
-  if (stringr::str_count(.lines[3], "\\t") == 13) { 
+  if (stringr::str_count(.lines[4], "\\t") == 13) { 
     .delim <- "\t" 
-    } else if (stringr::str_count(.lines[3], ",") == 13) { .delim <- "," }
+    } else if (stringr::str_count(.lines[4], ",") == 13) { .delim <- "," }
   if (.delim == "") stop("text delimiter not recognized")
   
   parse_table_text <- function(text, delim)
@@ -99,6 +140,7 @@ read_Biotek_Synergy2_kinetic <- function(.path) {
       paste(collapse='\n')
   }) %>% 
     paste(collapse='\n') %>% 
+    stringr::str_replace_all(stringr::fixed("OVRFLW"), "Inf") %>% 
     utils::read.table(text=., sep="\t", header=FALSE, stringsAsFactors=FALSE) %>% 
     stats::setNames(c("channel", "time", "step", "row", 1:12, 'last_col')) %>% 
     dplyr::select(-last_col) %>% 
@@ -109,19 +151,43 @@ read_Biotek_Synergy2_kinetic <- function(.path) {
     dplyr::select(-hours, -min, -sec) %>%
     # reshape wide to long
     tidyr::gather(col, value, dplyr::matches("\\d+")) %>% 
-    dplyr::mutate(well=paste0(row, col), col=as.numeric(col), channel=as.character(channel))
+    dplyr::mutate(well=paste0(row, col), col=as.integer(col), channel=as.character(channel))
   
  if(nrow(dplyr::filter(.data, step>1, time==0))) 
    warning('CRITICAL: You should check that your data file doesnt contain empty measurements at its end (this happens when the acquisition is stopped manually...). It is strongly advised to delete those manually an import again.')
  
-  return(.data)
+  return(dplyr::filter(.data, time > 0))
 }
 
-read_Biotek_Synergy2_columns <- function(.path, ...) {
-  readr::read_delim(.path, delim='\t', skip=2, 
-                    col_types=readr::cols(readr::col_time("%h:%M:%S"), .default=readr::col_double()) ) %>% 
-    dplyr::mutate(time=as.numeric(Time), Time=NULL, Temp=NULL) %>%
-    tidyr::pivot_longer(cols=-time, names_to="well", values_to = "value") %>% 
+read_Biotek_Synergy2_columns <- function(.path, .encoding="latin1", ...) {
+  # browser()
+  .lines <- readr::read_lines(.path, locale=readr::locale(encoding=.encoding))
+  .ids <- stringr::str_which(.lines, "^[:graph:]+:\\d+(,\\d+)?$") # find empty lines
+  
+  parse_table_text <- function(.text)
+    stringr::str_replace_all(.text, stringr::fixed("OVRFLW"), "Inf") %>% 
+    readr::read_delim(
+      delim='\t', 
+      col_types=readr::cols(readr::col_time("%h:%M:%S"), .default=readr::col_double())
+    ) %>% 
+    dplyr::mutate(time=as.numeric(Time), step=dplyr::row_number()) %>% 
+    dplyr::select(-Time, -dplyr::contains("T\u00B0")) %>% 
+    tidyr::pivot_longer(cols=c(-time, -step), names_to="well", values_to = "value") %>% 
+    dplyr::filter(!(dplyr::row_number() > 1 & time==0))
+
+  dplyr::tibble(id_first = .ids + 2, 
+                id_last = dplyr::lead(.ids+-1, default=length(.lines)) ) %>% 
+    dplyr::rowwise() %>% 
+    dplyr::mutate(channel = purrr::map_chr(id_first, ~.lines[.-2])) %>% 
+    dplyr::mutate(
+      data = purrr::map2(id_first, id_last, ~ {
+        paste(.lines[.x:.y], collapse='\n') %>% 
+          parse_table_text()
+      }),
+      id_first = NULL, id_last=NULL,
+    ) %>% 
+    tidyr::unnest(data) %>% 
+    tidyr::extract(well, c("row", "col"), "([A-H])(\\d+)", remove=FALSE, convert=TRUE) %>% 
     dplyr::full_join(dplyr::tibble(...), by=character())
 }
 

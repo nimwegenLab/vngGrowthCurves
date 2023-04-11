@@ -1,6 +1,6 @@
 Package: vngGrowthCurves
 Title: vngGrowthCurves
-Version: 0.2.1
+Version: 0.3.0
 Authors@R: person("Thomas", "Julou", email = "thomas.julou@normalesup.org",
                   role = c("aut", "cre"))
 Description: Analyse of spectrophotometry time series (for bacterial growth).
