@@ -4,28 +4,30 @@
   invisible()
 }
 
-globalVariables(c(".", ":=", "time", "hours", "sec", "channel", "value", "last_col", "step", "id_first", "id_last",
+globalVariables(c(".", ":=", "time", "hours", "sec", "channel", "value", "well", "last_col", "step", "id_first", "id_last",
                   "a", "i", "sd", "id_line", "Time"))
 
-create_empty_plate <- function(...) {
+create_empty_plate <- function(.nrow=8, .ncol=12, ...) {
   dplyr::left_join(
-    dplyr::tibble(a=1, ..., row=LETTERS[1:8]), 
-    dplyr::tibble(a=1, col=1:12), 
+    dplyr::tibble(a=1, ..., row=LETTERS[1:.nrow]), 
+    dplyr::tibble(a=1, col=1:.ncol), 
     by="a") %>%
     dplyr::select(-a) %>% 
     dplyr::mutate(well=paste0(row, col))
 }
 
 add_col_var <- function(.df, .name, .values, .row_subset=NULL) {
+  .ncol <- length(unique(.df$col))
+  
 # .row_subset is a vector of row indices, e.g. `LETTERS[1:4]`
-  if (length(.values) < 12) warning("`.values` has less than 12 values (values aren't recycled).")
-  if (length(.values) > 12) warning("`.values` has more than 12 values (values beyond the first twelve are discarded).")
+  if (length(.values) < .ncol) warning("`.values` has less than ", .ncol, " values (values aren't recycled).")
+  if (length(.values) > .ncol) warning("`.values` has more than ", .ncol, " values (values beyond the first twelve are discarded).")
   
   if (!is.null(.row_subset)) {
     if (length(setdiff(.row_subset, LETTERS[1:8])) > 0) warning("`.row_subset` has values not matching row indices (they will be ignored).")
     .row_subset <- intersect(.row_subset, LETTERS[1:8])
   } else {
-    # better surcharge the cross_join table otherwise the columns by whihc to left_join are not always the same
+    # better surcharge the cross_join table otherwise the columns by which to left_join are not always the same
     .row_subset <- LETTERS[1:8]
   }
   
@@ -44,9 +46,11 @@ add_col_var <- function(.df, .name, .values, .row_subset=NULL) {
 }
 
 add_row_var <- function(.df, .name, .values, .col_subset=NULL) {
+  .nrow <- length(unique(.df$row))
+  
 # .col_subset is a vector of column indices, e.g. `1:4`
-  if (length(.values) < 8) warning("`.values` has less than 8 values (values aren't recycled).")
-  if (length(.values) > 8) warning("`.values` has more than 8 values (values beyond the first eight are discarded).")
+  if (length(.values) < .nrow) warning("`.values` has less than ", .nrow, " values (values aren't recycled).")
+  if (length(.values) > .nrow) warning("`.values` has more than ", .nrow, " values (values beyond the first eight are discarded).")
   
   if (!is.null(.col_subset)) {
     if (length(setdiff(.col_subset, 1:12)) > 0) warning("`.col_subset` has values not matching column indices (they will be ignored).")
@@ -121,7 +125,7 @@ read_Biotek_Synergy2_matrix <- function(.path) {
     tidyr::unnest(data)
 }
 
-read_Biotek_Synergy2_kinetic <- function(.path) {
+read_Biotek_Synergy2_kinetic <- function(.path, ...) {
 #  read_spec_kinetic() is written such as to call read.table only once 
 # (much faster than calling it for each timepoint and channel)
   .lines <- readLines(.path)
@@ -154,15 +158,19 @@ read_Biotek_Synergy2_kinetic <- function(.path) {
     dplyr::mutate(well=paste0(row, col), col=as.integer(col), channel=as.character(channel))
   
  if(nrow(dplyr::filter(.data, step>1, time==0))) 
-   warning('CRITICAL: You should check that your data file doesnt contain empty measurements at its end (this happens when the acquisition is stopped manually...). It is strongly advised to delete those manually an import again.')
+   warning('CRITICAL: You should check that your data file doesnt contain empty measurements at its end (this happens when the acquisition is stopped manually...). It is strongly advised to delete those manually and import again.')
  
-  return(dplyr::filter(.data, time > 0))
+  return(
+    .data %>% 
+      dplyr::filter(time > 0) %>% 
+      dplyr::full_join(dplyr::tibble(...), by=character())
+    )
 }
 
 read_Biotek_Synergy2_columns <- function(.path, .encoding="latin1", ...) {
   # browser()
   .lines <- readr::read_lines(.path, locale=readr::locale(encoding=.encoding))
-  .ids <- stringr::str_which(.lines, "^[:graph:]+:\\d+(,\\d+)?$") # find empty lines
+  .ids <- stringr::str_which(.lines, "^[^\\t]+$") # find empty lines (not containing `TAB`)
   
   parse_table_text <- function(.text)
     stringr::str_replace_all(.text, stringr::fixed("OVRFLW"), "Inf") %>% 
