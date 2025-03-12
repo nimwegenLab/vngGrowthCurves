@@ -167,9 +167,9 @@ read_Biotek_Synergy2_kinetic <- function(.path, ...) {
     )
 }
 
-read_Biotek_Synergy2_columns <- function(.path, .encoding="latin1", ...) {
+read_Biotek_Synergy2_columns <- function(.path, .encoding="latin1", .skip=0, ...) {
   # browser()
-  .lines <- readr::read_lines(.path, locale=readr::locale(encoding=.encoding))
+  .lines <- readr::read_lines(.path, locale=readr::locale(encoding=.encoding), skip=.skip)
   .ids <- stringr::str_which(.lines, "^[^\\t]+$") # find empty lines (not containing `TAB`)
   
   parse_table_text <- function(.text)
@@ -180,8 +180,8 @@ read_Biotek_Synergy2_columns <- function(.path, .encoding="latin1", ...) {
     ) %>% 
     dplyr::mutate(time=as.numeric(Time), step=dplyr::row_number()) %>% 
     dplyr::select(-Time, -dplyr::contains("T\u00B0")) %>% 
-    tidyr::pivot_longer(cols=c(-time, -step), names_to="well", values_to = "value") %>% 
-    dplyr::filter(!(dplyr::row_number() > 1 & time==0))
+    dplyr::filter(!(dplyr::row_number() > 1 & time==0)) %>% 
+    tidyr::pivot_longer(cols=c(-time, -step), names_to="well", values_to = "value")
 
   dplyr::tibble(id_first = .ids + 2, 
                 id_last = dplyr::lead(.ids+-1, default=length(.lines)) ) %>% 
@@ -224,6 +224,11 @@ find_blank_od <- function(.t, .od, .tmin=0, .tmax=Inf, .npoints=10, .nstep=5, .n
   
   # todo: check that od is stable for a certain time after time_blank
   .out
+}
+
+time_at_od <- function(.time, .od, .target_od) {
+  .idx <- which(.od > .target_od & lag(.od) < .target_od)
+  if (length(.idx) > 0) return(.time[max(.idx)]) else return(max(.time))
 }
 
 
