@@ -81,8 +81,8 @@ add_row_var <- function(.df, .name, .values, .col_subset=NULL) {
 
 read_Biotek_Synergy2_matrices <- function(.path, .channels = "all", .ch_only=FALSE) {
   # .channels is either a vector of channels to be kept (one-based indices, or names), or "all"
+  # NB: use read_Biotek_Synergy2_kinetic() if possible since it is much faster (calls read.table only once)
   
-  warning("read_Biotek_Synergy2_matrices() is deprecated; use read_Biotek_Synergy2_kinetic() instead.")
   .lines <- readLines(.path)
 
   .ids <- stringr::str_which(.lines, "^$") # find empty lines
@@ -120,7 +120,7 @@ read_Biotek_Synergy2_matrices <- function(.path, .channels = "all", .ch_only=FAL
 }
 
 read_Biotek_Synergy2_matrix <- function(.path) {
-  # read only the first channel, ignore silently following ones
+  # read only the first channel, silently ignore the following ones
   read_Biotek_Synergy2_matrices(.path, .channels=1) %>% 
     tidyr::unnest(data)
 }
